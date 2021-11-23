@@ -145,7 +145,11 @@ module.exports = function update(options, optionalLogger) {
 					},
 					() => logger.logStage('waiting for IAM role propagation'),
 					Promise
-				);
+				).then(result => {
+					logger.logStage('waiting for lambda resource allocation');
+					return waitUntilNotPending(lambda, lambdaConfig.name, awsDelay, awsRetries)
+						.then(() => result);
+				});
 			}
 		},
 		cleanup = function () {
@@ -203,112 +207,118 @@ module.exports = function update(options, optionalLogger) {
 	options = options || {};
 
 	return validateOptions()
-	.then(() => {
-		logger.logStage('loading Lambda config');
-		return initEnvVarsFromOptions(options);
-	})
-	.then(() => getOwnerInfo(options.region, logger))
-	.then(ownerInfo => {
-		ownerAccount = ownerInfo.account;
-		awsPartition = ownerInfo.partition;
-	})
-	.then(() => loadConfig(options, {lambda: {name: true, region: true}}))
-	.then(config => {
-		lambdaConfig = config.lambda;
-		apiConfig = config.api;
-		lambda = loggingWrap(new aws.Lambda({region: lambdaConfig.region}), {log: logger.logApiCall, logName: 'lambda'});
-		s3 = loggingWrap(new aws.S3({region: lambdaConfig.region, signatureVersion: 'v4'}), {log: logger.logApiCall, logName: 's3'});
-		iam = loggingWrap(new aws.IAM({region: lambdaConfig.region}), {log: logger.logApiCall, logName: 'iam'});
-		apiGateway = retriableWrap(
-			loggingWrap(
-				new aws.APIGateway({region: lambdaConfig.region}),
-				{log: logger.logApiCall, logName: 'apigateway'}
-			),
-			() => logger.logStage('rate-limited by AWS, waiting before retry')
-		);
-	})
-	.then(() => lambda.getFunctionConfiguration({FunctionName: lambdaConfig.name}).promise())
-	.then(result => {
-		functionConfig = result;
-		requiresHandlerUpdate = apiConfig && apiConfig.id && /\.router$/.test(functionConfig.Handler);
-		if (requiresHandlerUpdate) {
-			functionConfig.Handler = functionConfig.Handler.replace(/\.router$/, '.proxyRouter');
-		} else if (options.handler) {
-			functionConfig.Handler = options.handler;
-			requiresHandlerUpdate = true;
-		}
-	})
-	.then(() => {
-		if (apiConfig) {
-			return apiGateway.getRestApiPromise({restApiId: apiConfig.id});
-		}
-	})
-	.then(() => fsPromise.mkdtempAsync(os.tmpdir() + path.sep))
-	.then(dir => workingDir = dir)
-	.then(() => collectFiles(options.source, workingDir, options, logger))
-	.then(dir => {
-		logger.logStage('validating package');
-		return validatePackage(dir, functionConfig.Handler, apiConfig && apiConfig.module);
-	})
-	.then(dir => {
-		packageDir = dir;
-		return cleanUpPackage(dir, options, logger);
-	})
-	.then(() => {
-		if (!options['skip-iam']) {
-			if (getSnsDLQTopic()) {
-				logger.logStage('patching IAM policy');
-				const policyUpdate = {
-					RoleName: lambdaConfig.role,
-					PolicyName: 'dlq-publisher',
-					PolicyDocument: snsPublishPolicy(getSnsDLQTopic())
-				};
-				return iam.putRolePolicy(policyUpdate).promise();
+		.then(() => {
+			logger.logStage('loading Lambda config');
+			return initEnvVarsFromOptions(options);
+		})
+		.then(() => getOwnerInfo(options.region, logger))
+		.then(ownerInfo => {
+			ownerAccount = ownerInfo.account;
+			awsPartition = ownerInfo.partition;
+		})
+		.then(() => loadConfig(options, { lambda: { name: true, region: true } }))
+		.then(config => {
+			lambdaConfig = config.lambda;
+			apiConfig = config.api;
+			lambda = loggingWrap(new aws.Lambda({ region: lambdaConfig.region }), { log: logger.logApiCall, logName: 'lambda' });
+			s3 = loggingWrap(new aws.S3({ region: lambdaConfig.region, signatureVersion: 'v4' }), { log: logger.logApiCall, logName: 's3' });
+			iam = loggingWrap(new aws.IAM({ region: lambdaConfig.region }), { log: logger.logApiCall, logName: 'iam' });
+			apiGateway = retriableWrap(
+				loggingWrap(
+					new aws.APIGateway({ region: lambdaConfig.region }),
+					{ log: logger.logApiCall, logName: 'apigateway' }
+				),
+				() => logger.logStage('rate-limited by AWS, waiting before retry')
+			);
+		})
+		.then(() => lambda.getFunctionConfiguration({ FunctionName: lambdaConfig.name }).promise())
+		.then(result => {
+			functionConfig = result;
+			requiresHandlerUpdate = apiConfig && apiConfig.id && /\.router$/.test(functionConfig.Handler);
+			if (requiresHandlerUpdate) {
+				functionConfig.Handler = functionConfig.Handler.replace(/\.router$/, '.proxyRouter');
+			} else if (options.handler) {
+				functionConfig.Handler = options.handler;
+				requiresHandlerUpdate = true;
 			}
-		}
-	})
-	.then(() => {
-		return updateConfiguration(requiresHandlerUpdate && functionConfig.Handler);
-	})
-	.then(() => {
-		return updateEnvVars(options, lambda, lambdaConfig.name, functionConfig.Environment && functionConfig.Environment.Variables);
-	})
-	.then(() => {
-		logger.logStage('zipping package');
-		return zipdir(packageDir);
-	})
-	.then(zipFile => {
-		packageArchive = zipFile;
-		return lambdaCode(s3, packageArchive, options['use-s3-bucket'], options['s3-sse'], options['s3-key']);
-	})
-	.then(functionCode => {
-		logger.logStage('updating Lambda');
-		s3Key = functionCode.S3Key;
-		functionCode.FunctionName = lambdaConfig.name;
-		functionCode.Publish = true;
-		if (options.arch) {
-			functionCode.Architectures = [options.arch];
-		}
-		return lambda.updateFunctionCode(functionCode).promise();
-	})
-	.then(result => {
-		logger.logStage('waiting for lambda resource allocation');
-		return waitUntilNotPending(lambda, lambdaConfig.name, awsDelay, awsRetries)
-		.then(() => result);
-	})
-	.then(result => {
-		updateResult = result;
-		if (s3Key) {
-			updateResult.s3key = s3Key;
-		}
-		return result;
-	})
-	.then(result => {
-		if (options.version) {
-			logger.logStage('setting version alias');
-			return markAlias(result.FunctionName, lambda, result.Version, options.version);
-		}
-	})
+		})
+		.then(() => {
+			if (apiConfig) {
+				return apiGateway.getRestApiPromise({ restApiId: apiConfig.id });
+			}
+		})
+		.then(() => fsPromise.mkdtempAsync(os.tmpdir() + path.sep))
+		.then(dir => workingDir = dir)
+		.then(() => collectFiles(options.source, workingDir, options, logger))
+		.then(dir => {
+			logger.logStage('validating package');
+			return validatePackage(dir, functionConfig.Handler, apiConfig && apiConfig.module);
+		})
+		.then(dir => {
+			packageDir = dir;
+			return cleanUpPackage(dir, options, logger);
+		})
+		.then(() => {
+			if (!options['skip-iam']) {
+				if (getSnsDLQTopic()) {
+					logger.logStage('patching IAM policy');
+					const policyUpdate = {
+						RoleName: lambdaConfig.role,
+						PolicyName: 'dlq-publisher',
+						PolicyDocument: snsPublishPolicy(getSnsDLQTopic())
+					};
+					return iam.putRolePolicy(policyUpdate).promise();
+				}
+			}
+		})
+		.then(() => {
+			return updateConfiguration(requiresHandlerUpdate && functionConfig.Handler);
+		})
+		.then(() => {
+			return updateEnvVars(options, lambda, lambdaConfig.name, functionConfig.Environment && functionConfig.Environment.Variables);
+		})
+		.then(() => {
+			logger.logStage('zipping package');
+			return zipdir(packageDir);
+		})
+		.then(zipFile => {
+			packageArchive = zipFile;
+			return lambdaCode(s3, packageArchive, options['use-s3-bucket'], options['s3-sse'], options['s3-key']);
+		})
+		.then(result => {
+			logger.logStage('waiting for lambda resource allocation');
+			return waitUntilNotPending(lambda, lambdaConfig.name, awsDelay, awsRetries)
+				.then(() => result);
+		})
+		.then(functionCode => {
+			logger.logStage('updating Lambda Hello');
+			s3Key = functionCode.S3Key;
+			functionCode.FunctionName = lambdaConfig.name;
+			functionCode.Publish = true;
+			if (options.arch) {
+				functionCode.Architectures = [options.arch];
+			}
+			logger.logStage('updating Lambda Hello 2');
+			return lambda.updateFunctionCode(functionCode).promise();
+		})
+		.then(result => {
+			logger.logStage('waiting for lambda resource allocation');
+			return waitUntilNotPending(lambda, lambdaConfig.name, awsDelay, awsRetries)
+				.then(() => result);
+		})
+		.then(result => {
+			updateResult = result;
+			if (s3Key) {
+				updateResult.s3key = s3Key;
+			}
+			return result;
+		})
+		.then(result => {
+			if (options.version) {
+				logger.logStage('setting version alias');
+				return markAlias(result.FunctionName, lambda, result.Version, options.version);
+			}
+		})
 	.then(updateWebApi)
 	.then(cleanup);
 };
