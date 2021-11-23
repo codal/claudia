@@ -147,7 +147,7 @@ module.exports = function update(options, optionalLogger) {
 					Promise
 				).then(result => {
 					logger.logStage('waiting for lambda resource allocation');
-					return waitUntilNotPending(lambda, lambdaConfig.name, awsDelay, awsRetries,logger)
+					return waitUntilNotPending(lambda, lambdaConfig.name, awsDelay, awsRetries, logger)
 						.then(() => result);
 				});
 			}
@@ -273,9 +273,17 @@ module.exports = function update(options, optionalLogger) {
 		})
 		.then(() => {
 			return updateConfiguration(requiresHandlerUpdate && functionConfig.Handler);
+		}).then(result => {
+			logger.logStage('waiting for lambda resource allocation');
+			return waitUntilNotPending(lambda, lambdaConfig.name, awsDelay, awsRetries, logger)
+				.then(() => result);
 		})
 		.then(() => {
 			return updateEnvVars(options, lambda, lambdaConfig.name, functionConfig.Environment && functionConfig.Environment.Variables);
+		}).then(result => {
+			logger.logStage('waiting for lambda resource allocation');
+			return waitUntilNotPending(lambda, lambdaConfig.name, awsDelay, awsRetries, logger)
+				.then(() => result);
 		})
 		.then(() => {
 			logger.logStage('zipping package');
@@ -287,7 +295,7 @@ module.exports = function update(options, optionalLogger) {
 		})
 		.then(result => {
 			logger.logStage('waiting for lambda resource allocation');
-			return waitUntilNotPending(lambda, lambdaConfig.name, awsDelay, awsRetries,logger)
+			return waitUntilNotPending(lambda, lambdaConfig.name, awsDelay, awsRetries, logger)
 				.then(() => result);
 		})
 		.then(functionCode => {
@@ -303,7 +311,7 @@ module.exports = function update(options, optionalLogger) {
 		})
 		.then(result => {
 			logger.logStage('waiting for lambda resource allocation');
-			return waitUntilNotPending(lambda, lambdaConfig.name, awsDelay, awsRetries,logger)
+			return waitUntilNotPending(lambda, lambdaConfig.name, awsDelay, awsRetries, logger)
 				.then(() => result);
 		})
 		.then(result => {
@@ -312,6 +320,10 @@ module.exports = function update(options, optionalLogger) {
 				updateResult.s3key = s3Key;
 			}
 			return result;
+		}).then(result => {
+			logger.logStage('waiting for lambda resource allocation');
+			return waitUntilNotPending(lambda, lambdaConfig.name, awsDelay, awsRetries, logger)
+				.then(() => result);
 		})
 		.then(result => {
 			if (options.version) {
@@ -319,8 +331,8 @@ module.exports = function update(options, optionalLogger) {
 				return markAlias(result.FunctionName, lambda, result.Version, options.version);
 			}
 		})
-	.then(updateWebApi)
-	.then(cleanup);
+		.then(updateWebApi)
+		.then(cleanup);
 };
 module.exports.doc = {
 	description: 'Deploy a new version of the Lambda function using project files, update any associated web APIs',
@@ -409,8 +421,8 @@ module.exports.doc = {
 			optional: true,
 			example: 'claudia-uploads',
 			description: 'The name of a S3 bucket that Claudia will use to upload the function code before installing in Lambda.\n' +
-			'You can use this to upload large functions over slower connections more reliably, and to leave a binary artifact\n' +
-			'after uploads for auditing purposes. If not set, the archive will be uploaded directly to Lambda.\n'
+				'You can use this to upload large functions over slower connections more reliably, and to leave a binary artifact\n' +
+				'after uploads for auditing purposes. If not set, the archive will be uploaded directly to Lambda.\n'
 		},
 		{
 			argument: 's3-key',
