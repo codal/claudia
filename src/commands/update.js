@@ -147,7 +147,7 @@ module.exports = function update(options, optionalLogger) {
 					Promise
 				).then(result => {
 					logger.logStage('waiting for lambda resource allocation');
-					return waitUntilNotPending(lambda, lambdaConfig.name, awsDelay, awsRetries)
+					return waitUntilNotPending(lambda, lambdaConfig.name, awsDelay, awsRetries,logger)
 						.then(() => result);
 				});
 			}
@@ -287,7 +287,7 @@ module.exports = function update(options, optionalLogger) {
 		})
 		.then(result => {
 			logger.logStage('waiting for lambda resource allocation');
-			return waitUntilNotPending(lambda, lambdaConfig.name, awsDelay, awsRetries)
+			return waitUntilNotPending(lambda, lambdaConfig.name, awsDelay, awsRetries,logger)
 				.then(() => result);
 		})
 		.then(functionCode => {
@@ -303,7 +303,7 @@ module.exports = function update(options, optionalLogger) {
 		})
 		.then(result => {
 			logger.logStage('waiting for lambda resource allocation');
-			return waitUntilNotPending(lambda, lambdaConfig.name, awsDelay, awsRetries)
+			return waitUntilNotPending(lambda, lambdaConfig.name, awsDelay, awsRetries,logger)
 				.then(() => result);
 		})
 		.then(result => {
