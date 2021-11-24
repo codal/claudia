@@ -30,7 +30,7 @@ module.exports = async function update(options, optionalLogger) {
 	'use strict';
 	let lambda, s3, iam, apiGateway, lambdaConfig, apiConfig, updateResult,
 		functionConfig, packageDir, packageArchive, s3Key,
-		ownerAccount, awsPartition, ownerInfo, workingDir, requiresHandlerUpdate, config, result, dir, zipFile, functionCode
+		ownerAccount, awsPartition, ownerInfo, workingDir, requiresHandlerUpdate, config, result, dir, zipFile, functionCode, markAliasOutput
 	workingDir,
 		requiresHandlerUpdate = false;
 	const logger = optionalLogger || new NullLogger(),
@@ -295,7 +295,6 @@ module.exports = async function update(options, optionalLogger) {
 	try {
 		result = await lambda.updateFunctionCode(functionCode).promise();
 	} catch (err) {
-		logger.logStage("Hello");
 		await new Promise((res, rej) => setTimeout(res, 20 * 1000));
 		result = await lambda.updateFunctionCode(functionCode).promise();
 	}
@@ -309,10 +308,10 @@ module.exports = async function update(options, optionalLogger) {
 
 	if (options.version) {
 		// logger.logStage('setting version alias');
-		return markAlias(result.FunctionName, lambda, result.Version, options.version);
+		markAliasOutput = await markAlias(result.FunctionName, lambda, result.Version, options.version);
 	}
 
-	await updateWebApi()
+	await updateWebApi();
 	await cleanup();
 };
 module.exports.doc = {
