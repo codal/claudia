@@ -311,8 +311,8 @@ module.exports = async function update(options, optionalLogger) {
 		markAliasOutput = await markAlias(result.FunctionName, lambda, result.Version, options.version);
 	}
 
-	await updateWebApi();
-	await cleanup();
+	let updateWebApiOutput = await updateWebApi(markAliasOutput);
+	await cleanup(updateWebApiOutput);
 };
 module.exports.doc = {
 	description: 'Deploy a new version of the Lambda function using project files, update any associated web APIs',
