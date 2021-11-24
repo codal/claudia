@@ -1,13 +1,10 @@
 const retry = require('oh-no-i-insist');
-module.exports = function waitUntilNotPending(lambda, functionName, timeout, retries, logger) {
+module.exports = function waitUntilNotPending(lambda, functionName, timeout, retries) {
 	'use strict';
 	return retry(
 		() => {
 			return lambda.getFunctionConfiguration({ FunctionName: functionName }).promise()
 				.then(result => {
-					if (logger) {
-						logger.logStage(result.State);
-					}
 					if (result.state === 'Failed') {
 						throw `Lambda resource update failed`;
 					}
