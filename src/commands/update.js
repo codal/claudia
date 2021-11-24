@@ -296,6 +296,7 @@ module.exports = async function update(options, optionalLogger) {
 		result = await lambda.updateFunctionCode(functionCode).promise();
 	} catch (err) {
 		logger.logStage("Hello")
+		result = await lambda.updateFunctionCode(functionCode).promise();
 	}
 
 
