@@ -207,12 +207,12 @@ module.exports = async function update(options, optionalLogger) {
 		};
 	options = options || {};
 
-	await validateOptions()
+	await validateOptions();
 
 	// logger.logStage('loading Lambda config');
 	await initEnvVarsFromOptions(options);
 
-	ownerInfo = getOwnerInfo(options.region, logger)
+	ownerInfo = await getOwnerInfo(options.region, logger)
 	ownerAccount = ownerInfo.account;
 	awsPartition = ownerInfo.partition;
 
