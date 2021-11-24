@@ -145,7 +145,7 @@ module.exports = async function update(options, optionalLogger) {
 							error.message.startsWith('The provided execution role does not have permissions');
 					},
 					() => // logger.logStage('waiting for IAM role propagation'),
-					Promise
+						Promise
 				)
 				// logger.logStage('waiting for lambda resource allocation');
 				await waitUntilNotPending(lambda, lambdaConfig.name, awsDelay, awsRetries, logger)
@@ -279,7 +279,7 @@ module.exports = async function update(options, optionalLogger) {
 	await waitUntilNotPending(lambda, lambdaConfig.name, awsDelay, awsRetries, logger)
 	packageArchive = zipFile;
 	let temp_result = await lambda.getFunctionConfiguration({ FunctionName: lambdaConfig.name }).promise()
-	logger.logStage(temp_result.state)
+	// logger.logStage(temp_result.state)
 	functionCode = await lambdaCode(s3, packageArchive, options['use-s3-bucket'], options['s3-sse'], options['s3-key']);
 
 
@@ -291,9 +291,12 @@ module.exports = async function update(options, optionalLogger) {
 		functionCode.Architectures = [options.arch];
 	}
 	// logger.logStage('updating Lambda Hello 2');
-	await waitUntilNotPending(lambda, lambdaConfig.name, awsDelay, awsRetries, logger)
-	result = await lambda.updateFunctionCode(functionCode).promise();
-
+	await waitUntilNotPending(lambda, lambdaConfig.name, awsDelay, awsRetries, logger);
+	try {
+		result = await lambda.updateFunctionCode(functionCode).promise();
+	} catch (err) {
+		logger.logStage("Hello")
+	}
 
 
 	updateResult = result;
