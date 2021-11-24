@@ -310,7 +310,7 @@ module.exports = async function update(options, optionalLogger) {
 		// logger.logStage('setting version alias');
 		markAliasOutput = await markAlias(result.FunctionName, lambda, result.Version, options.version);
 	}
-
+	logger.logStage(JSON.stringify(markAliasOutput))
 	let updateWebApiOutput = await updateWebApi(markAliasOutput);
 	await cleanup(updateWebApiOutput);
 };
