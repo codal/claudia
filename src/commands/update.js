@@ -88,6 +88,7 @@ module.exports = async function update(options, optionalLogger) {
 			if (apiConfig && apiConfig.id) {
 				// logger.logStage('updating REST API');
 				updateResult.url = apiGWUrl(apiConfig.id, lambdaConfig.region, alias);
+				logger.logStage(updateResult.url)
 				if (apiConfig.module) {
 					return updateClaudiaApiBuilderApi();
 				} else {
@@ -247,7 +248,7 @@ module.exports = async function update(options, optionalLogger) {
 	}
 
 	dir = await fsPromise.mkdtempAsync(os.tmpdir() + path.sep)
-	workingDir = dir
+	workingDir = dir;
 	dir = await collectFiles(options.source, workingDir, options, logger)
 
 	// logger.logStage('validating package');
