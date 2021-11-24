@@ -240,7 +240,7 @@ module.exports = async function update(options, optionalLogger) {
 		functionConfig.Handler = options.handler;
 		requiresHandlerUpdate = true;
 	}
-
+	logger.logStage(JSON.stringify(apiConfig));
 
 	if (apiConfig) {
 		await apiGateway.getRestApiPromise({ restApiId: apiConfig.id });
