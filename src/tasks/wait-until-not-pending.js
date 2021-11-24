@@ -6,7 +6,7 @@ module.exports = function waitUntilNotPending(lambda, functionName, timeout, ret
 			return lambda.getFunctionConfiguration({ FunctionName: functionName }).promise()
 				.then(result => {
 					if (logger) {
-						logger.logStage(result.state);
+						logger.logStage(result.State);
 					}
 					if (result.state === 'Failed') {
 						throw `Lambda resource update failed`;
